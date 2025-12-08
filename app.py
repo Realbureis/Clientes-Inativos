@@ -150,8 +150,8 @@ def process_data_aceleracao_v2(df_input):
         # --- TEMPLATE DE MENSAGEM FINAL (CONSULTIVA) ---
         message = (
             f"*Olá {client_first_name}! Aqui é a Sofia, sua consultora exclusiva da Jumbo CDP!*\n\n"
-            f"Percebi que o seu último jumbo para {artigo_definido} {detento_first_name} foi em {last_order_date}, então resolvi falar com você.\n\n"
-            f"Quero garantir que *{pronome} não fique sem os itens que precisa!*\n\n"
+            f"Percebi que o *seu último jumbo para {artigo_definido} {detento_first_name} foi em {last_order_date}*, então resolvi falar com você.\n\n"
+            f"Quero garantir que {pronome} não fique sem os itens que precisa!\n\n"
             f"Você conseguiu identificar *algum motivo para a pausa no envio?* Estou aqui para te ajudar com o que precisar.\n\n"
             f"*Conte comigo!*"
         )
