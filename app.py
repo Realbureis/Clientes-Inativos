@@ -6,10 +6,10 @@ import datetime
 import io
 
 # --- Configurações da Aplicação ---
-st.set_page_config(layout="wide", page_title="Processador de Clientes de Aceleração V3 (Estável)")
+st.set_page_config(layout="wide", page_title="Processador de Clientes de Aceleração V4 (Estável)")
 
 st.title("🎯 Qualificação para Aceleração de Repetição (28 Dias + Intenção)")
-st.markdown("Filtra clientes cuja **ÚLTIMA atividade geral** foi **exatamente 28 dias atrás** E que possuem um histórico de alta intenção (Aguardando, Salvo, Pag. Efetuado).")
+st.markdown("Divide a coorte de clientes cuja **ÚLTIMA atividade geral** foi **exatamente 28 dias atrás** em dois grupos para ações de venda distintas.")
 
 # --- Definição das Colunas ---
 COL_ID = 'Codigo Cliente'
@@ -46,10 +46,10 @@ def get_gender_parts(first_name):
 # --- Função de Lógica de Negócio (O Cérebro) ---
 
 @st.cache_data
-def process_data_aceleracao_v2(df_input): # <--- FUNÇÃO COM NOME CORRETO
+def process_data_aceleracao_v2(df_input):
     """
-    Filtra clientes que foram compradores, tiveram a última atividade há EXATAMENTE 28 dias
-    E que possuem um histórico de alta intenção (Aguardando pagamento, Pedido Salvo, Pagamento efetuado).
+    Segmenta a coorte de clientes cuja última atividade foi há 28 dias em
+    "Aceleração" (com histórico de intenção) e "Puros Inativos" (sem histórico de intenção).
     """
     df_original = df_input.copy() 
     
@@ -120,7 +120,7 @@ def process_data_aceleracao_v2(df_input): # <--- FUNÇÃO COM NOME CORRETO
     
     # --- ETAPA 4: Geração dos DFs de Referência (Apenas o registro de 28 dias) ---
     
-    # Base para DF de Mensagens (Apenas 1 linha por ID, que é a de 28 dias atrás)
+    # 1. Base para DF de Mensagens (Apenas 1 linha por ID, que é a de 28 dias atrás)
     df_reference = df_coorte.sort_values(by=COL_DATE, ascending=False).drop_duplicates(subset=[COL_ID], keep='first').copy()
     
     # 2. Criar a mensagem na DF de Referência (Mensagem baseada no pedido de 28 dias atrás)
@@ -157,10 +157,7 @@ def process_data_aceleracao_v2(df_input): # <--- FUNÇÃO COM NOME CORRETO
     df_reference[COL_OUT_NAME] = temp_df[0]
     df_reference[COL_OUT_MSG] = temp_df[1]
     
-    # Colunas de referência que não conflitam em nome: [COL_OUT_NAME, COL_OUT_MSG]
-    # Colunas que conflitam: [COL_PHONE, COL_NAME, COL_DATE, COL_ORDER_ID, COL_TOTAL_VALUE, COL_DETENTO]
-    
-    # Renomear as colunas da DF de Referência que são usadas na mensagem
+    # Renomear as colunas da DF de Referência (que serão os dados fixos)
     df_reference.rename(columns={
         COL_DATE: COL_DATE + '_ref',
         COL_ORDER_ID: COL_ORDER_ID + '_ref',
@@ -176,18 +173,29 @@ def process_data_aceleracao_v2(df_input): # <--- FUNÇÃO COM NOME CORRETO
 
     # --- ETAPA 5: CRIAÇÃO DO DATAFRAME DE SAÍDA COMPLETO (Todas as Linhas) ---
 
-    # A. Reduzir o DF completo da coorte apenas para os IDs qualificados (ACELERAÇÃO)
+    # A. Filtra o DF completo da coorte apenas para os IDs qualificados (ACELERAÇÃO)
     df_aceleracao_full = df_coorte[df_coorte[COL_ID].isin(aceleracao_set)].copy()
 
     # B. Aplicar o filtro no DF completo da coorte (PURO INATIVO)
     df_puros_inativos_full = df_coorte[df_coorte[COL_ID].isin(puros_inativos_set)].copy()
 
     
-    # C. Merge dos dados de TODAS as linhas de ACELERAÇÃO com os dados de referência/mensagem (df_reference)
-    df_aceleracao_final = df_aceleracao_full.merge(df_reference[ref_cols_to_merge], on=COL_ID, how='left').copy()
+    # C. Merge dos dados de TODAS as linhas de ACELERAÇÃO com os dados de referência/mensagem
+    # NOTA: Renomeamos a esquerda explicitamente no merge para evitar confusão no final.
+    df_aceleracao_final = df_aceleracao_full.merge(
+        df_reference[ref_cols_to_merge], 
+        on=COL_ID, 
+        how='left', 
+        suffixes=('_pedido', '_ref') # Sufixo para as colunas de pedido (esquerda) e referência (direita)
+    ).copy()
 
-    # D. Merge dos dados de TODAS as linhas de PURO INATIVO com os dados de referência/mensagem (df_reference)
-    df_puros_inativos_final = df_puros_inativos_full.merge(df_reference[ref_cols_to_merge], on=COL_ID, how='left').copy()
+    # D. Merge dos dados de TODAS as linhas de PURO INATIVO com os dados de referência/mensagem
+    df_puros_inativos_final = df_puros_inativos_full.merge(
+        df_reference[ref_cols_to_merge], 
+        on=COL_ID, 
+        how='left', 
+        suffixes=('_pedido', '_ref')
+    ).copy()
 
     
     # 5. Finalização das Métricas
@@ -199,16 +207,16 @@ def process_data_aceleracao_v2(df_input): # <--- FUNÇÃO COM NOME CORRETO
     def format_df(df_in, segment_name):
         if df_in.empty:
             return df_in
-        
+            
         # Renomeia as colunas de DETALHES do pedido (que são por linha)
         df_in.rename(columns={
-            COL_DATE: 'Data_Pedido',
-            COL_ORDER_ID: 'N_Pedido_Linha',
-            COL_STATUS: 'Status_Linha',
-            COL_TOTAL_VALUE: 'Valor_Total_Linha',
-            COL_NAME: COL_NAME + '_Linha',
-            COL_DETENTO: COL_DETENTO + '_Linha',
-            COL_PHONE: COL_PHONE + '_Linha',
+            COL_DATE + '_pedido': 'Data_Pedido',
+            COL_ORDER_ID + '_pedido': 'N_Pedido_Linha',
+            COL_STATUS + '_pedido': 'Status_Linha',
+            COL_TOTAL_VALUE + '_pedido': 'Valor_Total_Linha',
+            COL_NAME + '_pedido': COL_NAME + '_Linha',
+            COL_DETENTO + '_pedido': COL_DETENTO + '_Linha',
+            COL_PHONE + '_pedido': COL_PHONE + '_Linha',
         }, inplace=True)
         
         # Formatação
@@ -311,10 +319,10 @@ if uploaded_file is not None:
                     pedido_numero = row['N_Pedido_Linha']
                     client_id = row[COL_ID]
 
-                    # Dados de Referência (Mensagem/Nome/Telefone - do DF_REFERENCE)
+                    # Dados de Referência (Mensagem/Nome/Telefone - do DF_REFERENCE, que manteve o nome 'limpo')
                     cliente_first_name = row[COL_OUT_NAME]
                     message_text = row[COL_OUT_MSG]
-                    phone_number = "".join(filter(str.isdigit, str(row[COL_PHONE] + '_ref')))
+                    phone_number = "".join(filter(str.isdigit, str(row[COL_PHONE + '_ref'])))
                     
                     
                     # Checagem para renderizar o botão (apenas uma vez por cliente)
@@ -365,22 +373,30 @@ if uploaded_file is not None:
                 render_lead_table(df_puros_inativos, "Segmento B: Leads PUROS INATIVOS (Sem Histórico de Intenção)", "#34B7F1") 
 
             # --- Botão de Download Combinado ---
-            # Combina e prepara para exportação 
-            df_export_combined = pd.concat([df_aceleracao, df_puros_inativos], ignore_index=True)
+            # Combina e prepara para exportação (remove colunas temporárias)
+            df_export_combined = pd.concat([df_aceleracao.assign(Segmento='ACELERAÇÃO'), 
+                                            df_puros_inativos.assign(Segmento='PURO INATIVO')], ignore_index=True)
 
-            df_export_combined.rename(
-                columns={'Data_Referencia': 'Ultima_Atividade_Geral_28_Dias', 'Status_Linha': 'Status_Pedido'},
-                inplace=True)
-            
-            # Filtra as colunas para a exportação final
+            # Filtra e renomeia colunas para exportação
             export_cols = [
-                COL_ID, COL_OUT_NAME, 'Ultimo Detento Cadastrado_ref', COL_PHONE + '_ref', 'Segmento_Linha', 'Status_Pedido', 
-                'N_Pedido_Linha', 'Valor_Total_Linha', 'Ultima_Atividade_Geral_28_Dias', COL_OUT_MSG
+                COL_ID, COL_OUT_NAME, COL_DETENTO + '_ref', COL_PHONE + '_ref', 'Segmento', 'Status_Linha', 
+                'N_Pedido_Linha', 'Valor_Total_Linha', 'Data_Referencia', COL_OUT_MSG
             ]
-            
-            # Reorganizar as colunas
             df_export_combined = df_export_combined.reindex(columns=export_cols)
 
+            df_export_combined.rename(
+                columns={
+                    COL_OUT_NAME: COL_NAME,
+                    COL_DETENTO + '_ref': COL_DETENTO,
+                    COL_PHONE + '_ref': COL_PHONE,
+                    'Status_Linha': COL_STATUS,
+                    'N_Pedido_Linha': COL_ORDER_ID,
+                    'Valor_Total_Linha': COL_TOTAL_VALUE,
+                    'Data_Referencia': COL_DATE,
+                    COL_OUT_MSG: 'Mensagem_Referencia'
+                },
+                inplace=True)
+            
             csv_data = df_export_combined.to_csv(index=False, sep=';', encoding='utf-8').encode('utf-8')
             st.download_button(
                 label="📥 Baixar Lista de Segmentação Completa (CSV)",
