@@ -153,7 +153,7 @@ def process_data_aceleracao_v2(df_input):
             f"Percebi que o seu último jumbo para {artigo_definido} {detento_first_name} foi em {last_order_date}, então resolvi falar com você.\n\n"
             f"Quero garantir que {pronome} não fique sem os itens que precisa!\n\n"
             f"Você conseguiu identificar algum motivo para a pausa no envio? Estou aqui para te ajudar com o que precisar.\n\n"
-            f"Conte comigo!"
+            f"Conte comigo 💛!"
         )
         return client_first_name, message
 
