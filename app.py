@@ -6,7 +6,7 @@ import datetime
 import io
 
 # --- Configurações da Aplicação ---
-st.set_page_config(layout="wide", page_title="Sistema de Segmentação: Inativos e Aceleração V5 (Natal)")
+st.set_page_config(layout="wide", page_title="Sistema de Segmentação: Inativos e Aceleração V6")
 
 st.title("🎯 Qualificação para Aceleração de Repetição (28 Dias + Intenção)")
 st.markdown("Divide a coorte de clientes cuja **ÚLTIMA atividade geral** foi **exatamente 28 dias atrás** em dois grupos para ações de venda distintas.")
@@ -46,7 +46,7 @@ def get_gender_parts(first_name):
 # --- Função de Lógica de Negócio (O Cérebro) ---
 
 @st.cache_data
-def process_data_aceleracao_v2(df_input):
+def process_data_aceleracao_v2(df_input, date_28_days_ago):
     """
     Segmenta a coorte de clientes cuja última atividade foi há 28 dias em
     "Aceleração" (com histórico de intenção) e "Puros Inativos" (sem histórico de intenção).
@@ -81,12 +81,14 @@ def process_data_aceleracao_v2(df_input):
     df = df[~df[COL_ID].isin(cancelados_ids)].copy()
     metrics['removidos_cancelados'] = metrics['original_count'] - len(df)
     
+    # GARANTIA DE COMPRADOR (Cliente deve ter tido um "Enviado" alguma vez)
+    comprador_ids = df[df[COL_STATUS].astype(str).str.lower() == 'enviado'][COL_ID].unique()
+    df = df[df[COL_ID].isin(comprador_ids)].copy()
+    
     if df.empty:
         return pd.DataFrame(), pd.DataFrame(), metrics 
     
     # --- ETAPA 2: IDENTIFICAÇÃO DA COORTE BASE (Filtro 1: ÚNICO DIA) ---
-    today = date.today() 
-    date_28_days_ago = today - timedelta(days=28)
     
     # A. Encontra a ÚLTIMA DATA de atividade (qualquer status) para cada cliente
     df_last_activity = df.groupby(COL_ID)[COL_DATE].max().reset_index()
@@ -120,7 +122,7 @@ def process_data_aceleracao_v2(df_input):
     
     # --- ETAPA 4: Geração dos DFs de Referência (Apenas o registro de 28 dias) ---
     
-    # 1. Base para DF de Mensagens (Apenas 1 linha por ID, que é a de 28 dias atrás)
+    # Base para DF de Mensagens (Apenas 1 linha por ID, que é a de 28 dias atrás)
     df_reference = df_coorte.sort_values(by=COL_DATE, ascending=False).drop_duplicates(subset=[COL_ID], keep='first').copy()
     
     # 2. Criar a mensagem na DF de Referência (Mensagem baseada no pedido de 28 dias atrás)
@@ -141,12 +143,12 @@ def process_data_aceleracao_v2(df_input):
             pronome = gender_parts['pronome']
             artigo_definido = gender_parts['article'] 
 
-        # --- TEMPLATE DE MENSAGEM FINAL (ATUALIZADO COM NATAL) ---
+        # --- TEMPLATE DE MENSAGEM FINAL (ULTIMA MENSAGEM DO USUÁRIO) ---
         message = (
             f"Olá {client_first_name}! Aqui é a Sofia, sua consultora exclusiva da Jumbo CDP!\n\n"
-            f"Percebi que o seu último jumbo para {artigo_definido} {detento_first_name} foi em {last_order_date}.\n\n"
-            f"Como o Natal está chegando, resolvi falar com você para garantir que **{pronome} receba um presente especial de Natal**! 🎁\n\n"
-            f"Você gostaria de aproveitar e **enviar o jumbo como um presente** agora, para que chegue a tempo? Estou aqui para te ajudar com o que precisar.\n\n"
+            f"Percebi que o seu último jumbo para {artigo_definido} {detento_first_name} foi em {last_order_date}, então resolvi falar com você.\n\n"
+            f"Quero garantir que **{pronome} não fique sem os itens que precisa!**\n\n"
+            f"Você conseguiu identificar **algum motivo para a pausa no envio?** Estou aqui para te ajudar com o que precisar.\n\n"
             f"**Conte comigo! 💛**"
         )
         return client_first_name, message
@@ -156,7 +158,6 @@ def process_data_aceleracao_v2(df_input):
     temp_df = pd.DataFrame(data_series.tolist(), index=df_reference.index) 
     df_reference[COL_OUT_NAME] = temp_df[0]
     df_reference[COL_OUT_MSG] = temp_df[1]
-    
     
     # 1. Aceleração DF (Leads com Histórico de Intenção)
     df_aceleracao_final = df_reference[df_reference[COL_ID].isin(aceleracao_set)].copy()
@@ -182,9 +183,9 @@ def process_data_aceleracao_v2(df_input):
             except:
                 return str(value)
 
+        # Aplicar formatação BRL e Data
         df_in['Valor_BRL'] = df_in[COL_TOTAL_VALUE].apply(format_brl)
         df_in['Data_Referencia'] = df_in[COL_DATE].dt.strftime('%d/%m/%Y')
-        df_in[COL_STATUS] = df_in[COL_STATUS].astype(str).str.replace(r'(\S)\s(\S)', r'\1\2', regex=True) # Limpa Status para export
         df_in['Status_Segmento'] = segment_name
         
         return df_in.sort_values(by=COL_ID, ascending=True).reset_index(drop=True)
@@ -197,8 +198,13 @@ def process_data_aceleracao_v2(df_input):
 
 # --- Interface do Usuário (Streamlit) ---
 
+# 1. Obter a data de corte
+today = date.today() 
+date_28_days_ago = today - timedelta(days=28)
+
 # Seção de Upload
 st.header("1. Upload do Relatório de Vendas (Excel/CSV)")
+st.markdown(f"#### Data de Corte (28 dias atrás): **{date_28_days_ago.strftime('%d/%m/%Y')}**")
 st.markdown(f"#### Colunas Esperadas: {COL_ID}, {COL_NAME}, {COL_PHONE}, {COL_STATUS}, {COL_ORDER_ID}, **{COL_DATE}**, {COL_TOTAL_VALUE}, **{COL_DETENTO}**")
 
 uploaded_file = st.file_uploader(
@@ -225,7 +231,8 @@ if uploaded_file is not None:
     if st.button("🚀 Processar Dados e Gerar Segmentos de 28 Dias"):
         
         try:
-            df_aceleracao, df_puros_inativos, metrics = process_data_aceleracao_v2(df_original) 
+            # Chama a função de processamento, injetando a data de corte
+            df_aceleracao, df_puros_inativos, metrics = process_data_aceleracao_v2(df_original, date_28_days_ago) 
         except ValueError as ve:
             st.error(f"Erro de Processamento: {ve}")
             st.stop()
@@ -267,14 +274,14 @@ if uploaded_file is not None:
                 for index, row in df_display.iterrows():
                     cols = st.columns([1.5, 1.5, 1.2, 1.2, 1.2, 5]) 
                     
-                    # Dados do Pedido (colunas de referência - 28 dias atrás)
+                    # Dados do Pedido (colunas da linha atual)
                     pedido_status = row[COL_STATUS]
                     pedido_data = row['Data_Referencia']
                     pedido_valor = row['Valor_BRL']
                     pedido_numero = row[COL_ORDER_ID]
                     client_id = row[COL_ID]
 
-                    # Dados de Referência (Mensagem/Nome/Telefone - do DF_REFERENCE)
+                    # Dados de Referência (Mensagem/Nome/Telefone)
                     cliente_first_name = row[COL_OUT_NAME]
                     message_text = row[COL_OUT_MSG]
                     phone_number = "".join(filter(str.isdigit, str(row[COL_PHONE])))
@@ -330,14 +337,14 @@ if uploaded_file is not None:
             # Filtra as colunas e renomeia para a exportação final
             export_cols = [
                 COL_ID, COL_NAME, COL_DETENTO, COL_PHONE, 'Segmento', COL_STATUS, 
-                COL_ORDER_ID, COL_TOTAL_VALUE, COL_DATE, COL_OUT_MSG
+                COL_ORDER_ID, COL_TOTAL_VALUE, 'Data_Referencia', COL_OUT_MSG
             ]
             
             df_export_combined = df_export_combined.reindex(columns=export_cols)
 
             df_export_combined.rename(
                 columns={
-                    COL_DATE: 'Ultima_Atividade_Geral_28_Dias',
+                    'Data_Referencia': 'Ultima_Atividade_Geral_28_Dias',
                     COL_OUT_MSG: 'Mensagem_Referencia'
                 },
                 inplace=True)
