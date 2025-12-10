@@ -6,7 +6,7 @@ import datetime
 import io
 
 # --- Configurações da Aplicação ---
-st.set_page_config(layout="wide", page_title="Sistema de Segmentação: Inativos e Aceleração V6")
+st.set_page_config(layout="wide", page_title="Sistema de Segmentação: Inativos e Aceleração V7")
 
 st.title("🎯 Qualificação para Aceleração de Repetição (28 Dias + Intenção)")
 st.markdown("Divide a coorte de clientes cuja **ÚLTIMA atividade geral** foi **exatamente 28 dias atrás** em dois grupos para ações de venda distintas.")
@@ -122,7 +122,7 @@ def process_data_aceleracao_v2(df_input, date_28_days_ago):
     
     # --- ETAPA 4: Geração dos DFs de Referência (Apenas o registro de 28 dias) ---
     
-    # Base para DF de Mensagens (Apenas 1 linha por ID, que é a de 28 dias atrás)
+    # 1. Base para DF de Mensagens (Apenas 1 linha por ID, que é a de 28 dias atrás)
     df_reference = df_coorte.sort_values(by=COL_DATE, ascending=False).drop_duplicates(subset=[COL_ID], keep='first').copy()
     
     # 2. Criar a mensagem na DF de Referência (Mensagem baseada no pedido de 28 dias atrás)
@@ -143,13 +143,13 @@ def process_data_aceleracao_v2(df_input, date_28_days_ago):
             pronome = gender_parts['pronome']
             artigo_definido = gender_parts['article'] 
 
-        # --- TEMPLATE DE MENSAGEM FINAL (ULTIMA MENSAGEM DO USUÁRIO) ---
+        # --- TEMPLATE DE MENSAGEM FINAL (ULTIMA MENSAGEM DO USUÁRIO CORRIGIDA) ---
         message = (
-            f"Olá {client_first_name}! Aqui é a Sofia, sua consultora exclusiva da Jumbo CDP!\n\n"
-            f"Percebi que o seu último jumbo para {artigo_definido} {detento_first_name} foi em {last_order_date}, então resolvi falar com você.\n\n"
-            f"Quero garantir que **{pronome} não fique sem os itens que precisa!**\n\n"
-            f"Você conseguiu identificar **algum motivo para a pausa no envio?** Estou aqui para te ajudar com o que precisar.\n\n"
-            f"**Conte comigo! 💛**"
+            f"*Olá, {client_first_name}! Aqui é a Sofia, sua consultora exclusiva da Jumbo CDP!*\n\n"
+            f"Percebi que o seu último jumbo para o {artigo_definido} {detento_first_name} foi em {last_order_date}.\n\n"
+            f"Como o Natal está chegando, resolvi falar com você para garantir que **{pronome} receba um presente especial de Natal**!\n\n"
+            f"Você gostaria de aproveitar e **enviar o jumbo como um presente** agora, para que chegue a tempo? Estou aqui para te ajudar com o que precisar.\n\n"
+            f"**Conte comigo!**"
         )
         return client_first_name, message
 
@@ -158,6 +158,7 @@ def process_data_aceleracao_v2(df_input, date_28_days_ago):
     temp_df = pd.DataFrame(data_series.tolist(), index=df_reference.index) 
     df_reference[COL_OUT_NAME] = temp_df[0]
     df_reference[COL_OUT_MSG] = temp_df[1]
+    
     
     # 1. Aceleração DF (Leads com Histórico de Intenção)
     df_aceleracao_final = df_reference[df_reference[COL_ID].isin(aceleracao_set)].copy()
