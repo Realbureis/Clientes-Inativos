@@ -145,11 +145,11 @@ def process_data_aceleracao_v2(df_input, date_28_days_ago):
 
         # --- TEMPLATE DE MENSAGEM FINAL (ULTIMA MENSAGEM DO USUÁRIO CORRIGIDA) ---
         message = (
-            f"*Olá, {client_first_name}! Aqui é a Sofia, sua consultora exclusiva da Jumbo CDP!*\n\n"
-            f"Percebi que o seu último jumbo para o {artigo_definido} {detento_first_name} foi em {last_order_date}.\n\n"
-            f"Como o Natal está chegando, resolvi falar com você para garantir que **{pronome} receba um presente especial de Natal**!\n\n"
-            f"Você gostaria de aproveitar e **enviar o jumbo como um presente** agora, para que chegue a tempo? Estou aqui para te ajudar com o que precisar.\n\n"
-            f"**Conte comigo!**"
+            f"Olá, *{client_first_name}!* Aqui é a Sofia, sua consultora exclusiva da Jumbo CDP!
+Percebi que o seu último jumbo para o *{artigo_definido}* *{detento_first_name}* foi em *{last_order_date}*.
+Resolvi falar com você para garantir que ele não fique *muito tempo sem os itens essenciais*!
+*Conte comigo para cuidar de você!*
+"
         )
         return client_first_name, message
 
