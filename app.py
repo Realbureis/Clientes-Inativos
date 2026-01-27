@@ -141,7 +141,7 @@ def process_data_aceleracao_v2(df_input, date_28_days_ago):
 
         # --- NOVA MENSAGEM PERSONALIZADA (SEM NATAL) ---
         message = (
-            f"Olá, *{client_first_name}!* Aqui é a Sofia, sua consultora exclusiva da Jumbo CDP!\n\n"
+            f"Olá, *{client_first_name}!* Aqui é a Tais, sua consultora exclusiva da Jumbo CDP!\n\n"
             f"Percebi que o seu último jumbo para o *{artigo_definido}* *{detento_first_name}* foi em *{last_order_date}*.\n\n"
             f"Resolvi falar com você para garantir que ele não fique *muito tempo sem os itens essenciais*!\n\n"
             f"*Conte comigo para cuidar de vocês!*"
